@@ -1,29 +1,33 @@
-from flask import Blueprint, jsonify
-from app.models.audit_log import AuditLog
-from app.models.risk_score import RiskScore
+from flask import Blueprint, request, jsonify
+from app.services.auth_service import AuthService
 
-audit_bp = Blueprint('audit', __name__)
+auth_bp = Blueprint('auth', __name__)
 
-@audit_bp.route('/audit-logs', methods=['GET'])
-def get_audit_logs():
-    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
-    return jsonify([{
-        'id': log.id,
-        'action_type': log.action_type,
-        'entity_type': log.entity_type,
-        'entity_id': log.entity_id,
-        'details': log.details,
-        'timestamp': log.timestamp.isoformat()
-    } for log in logs]), 200
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    name = data.get('name')
+    email = data.get('email')
+    password = data.get('password')
+    
+    if not name or not email or not password:
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    user, error = AuthService.register_user(name, email, password)
+    if error:
+        return jsonify({'error': error}), 400
+    
+    return jsonify(user.to_dict()), 201
 
-@audit_bp.route('/risk-logs', methods=['GET'])
-def get_risk_logs():
-    scores = RiskScore.query.order_by(RiskScore.timestamp.desc()).all()
-    return jsonify([{
-        'id': score.id,
-        'user_id': score.user_id,
-        'transaction_id': score.transaction_id,
-        'score': float(score.score),
-        'reason': score.reason,
-        'timestamp': score.timestamp.isoformat()
-    } for score in scores]), 200
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+    
+    token, error = AuthService.login_user(email, password)
+    if error:
+        return jsonify({'error': error}), 401
+    
+    return jsonify({'token': token}), 200
+
